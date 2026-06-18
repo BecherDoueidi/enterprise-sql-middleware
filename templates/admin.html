@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Phase 5: Promotion Review Queue</title>
+    <style>
+        body { font-family: system-ui, -apple-system, sans-serif; background-color: #f4f4f5; padding: 20px; }
+        .container { max-width: 1200px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+        h1 { font-size: 1.5rem; color: #111827; border-bottom: 1px solid #e5e7eb; padding-bottom: 10px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; text-align: left; }
+        th, td { padding: 12px; border-bottom: 1px solid #e5e7eb; vertical-align: top; }
+        th { background-color: #f9fafb; color: #374151; font-weight: 600; }
+        .sql-block { background: #1f2937; color: #10b981; padding: 8px; border-radius: 4px; font-family: monospace; white-space: pre-wrap; font-size: 0.875rem; }
+        .status-badge { display: inline-block; padding: 4px 8px; border-radius: 9999px; font-size: 0.75rem; font-weight: 600; }
+        .status-approved { background-color: #d1fae5; color: #065f46; }
+        .status-rejected { background-color: #fee2e2; color: #991b1b; }
+        .status-promoted { background-color: #dbeafe; color: #1e40af; }
+        button { cursor: pointer; padding: 6px 12px; border: none; border-radius: 4px; font-weight: 600; font-size: 0.875rem; transition: opacity 0.2s; }
+        .btn-promote { background-color: #2563eb; color: white; }
+        .btn-promote:hover { opacity: 0.9; }
+        .btn-disabled { background-color: #9ca3af; color: white; cursor: not-allowed; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Staging Queue Review</h1>
+        <table>
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>User Question</th>
+                    <th>Generated SQL</th>
+                    <th>Execution Status</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody id="queue-body">
+                </tbody>
+        </table>
+    </div>
+
+    <script>
+        async function fetchQueue() {
+            const response = await fetch('/api/queue');
+            const data = await response.json();
+            const tbody = document.getElementById('queue-body');
+            tbody.innerHTML = '';
+
+            data.forEach(row => {
+                const tr = document.createElement('tr');
+                
+                let statusClass = row.status.toLowerCase() === 'approved' ? 'status-approved' : 
+                                 (row.status.toLowerCase() === 'rejected' ? 'status-rejected' : 'status-promoted');
+                
+                let actionButton = '';
+                if (row.status === 'Approved') {
+                    actionButton = `<button class="btn-promote" onclick="promoteQuery(${row.id})">Promote to Catalog</button>`;
+                } else if (row.status === 'Promoted') {
+                    actionButton = `<button class="btn-disabled" disabled>Promoted</button>`;
+                } else {
+                    actionButton = `<span style="color: #6b7280; font-size: 0.875rem;">Blocked by Fence</span>`;
+                }
+
+                tr.innerHTML = `
+                    <td>${row.id}</td>
+                    <td><strong>${row.question}</strong></td>
+                    <td>${row.sql ? `<div class="sql-block">${row.sql}</div>` : '<span style="color:#9ca3af">N/A</span>'}</td>
+                    <td><span class="status-badge ${statusClass}">${row.status}</span><br><small style="color:#6b7280">${row.details || ''}</small></td>
+                    <td>${actionButton}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        async function promoteQuery(id) {
+            if (!confirm("Are you sure you want to promote this query to the permanent catalog?")) return;
+            
+            const response = await fetch(`/api/promote/${id}`, { method: 'POST' });
+            if (response.ok) {
+                fetchQueue(); // Refresh the table
+            } else {
+                alert("Failed to promote query.");
+            }
+        }
+
+        // Load data on startup
+        fetchQueue();
+    </script>
+</body>
+</html>

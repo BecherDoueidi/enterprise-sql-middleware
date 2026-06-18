@@ -1,0 +1,6 @@
+# Enterprise Promoted Query Catalog
+# Queries defined here bypass the LLM entirely.
+
+promoted_queries:
+  - intent: "show me total revenue for al-nasserya"
+    sql: "SELECT app_user.vw_rev_by_center.total_revenue FROM app_user.vw_rev_by_center WHERE app_user.vw_rev_by_center.center_name = 'Al-Nasserya'"

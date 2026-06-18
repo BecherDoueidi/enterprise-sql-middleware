@@ -1,0 +1,13 @@
+# Ignore the Python Virtual Environment
+my_flask_app/.venv/
+.venv/
+__pycache__/
+*.pyc
+
+# Ignore local binary databases (Audit & Business data)
+*.db
+*.sqlite3
+
+# Ignore OS-specific garbage
+.DS_Store
+Thumbs.db
