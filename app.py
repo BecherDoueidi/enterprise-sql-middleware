@@ -68,23 +68,36 @@ def generate_sql():
         }), 403
 
     try:
-        # 3. Dynamic Context Harvesting
-        live_schema = extract_live_metadata()
+        # 3. Dynamic Context & Dialect Harvesting
+        db_dialect, live_schema = extract_live_metadata()
         
+        # Explicit few-shot anchors tailored to the detected dialect
+        few_shot_examples = ""
+        if db_dialect.lower() == "sqlite":
+            few_shot_examples = """
+### CORRECT SYNTAX EXAMPLES FOR SQLITE:
+
+User Query: Combine first and last names of the top 2 oldest employees and get their hire year.
+Correct Response: SELECT FirstName || ' ' || LastName AS FullName, strftime('%Y', HireDate) AS HireYear FROM Employee ORDER BY BirthDate ASC LIMIT 2
+
+User Query: Concatenate city and country for customers and limit to 5.
+Correct Response: SELECT BillingCity || ', ' || BillingCountry FROM Invoice LIMIT 5
+"""
+
         # 4. Strict System Boundary Construction
         system_prompt = f"""You are an enterprise-grade Text-to-SQL compilation engine.
 Your sole mandate is to convert natural language queries into valid, optimized SQL statements.
 
 CRITICAL OPERATIONAL BOUNDARIES:
-1. You must generate SQL statements based EXCLUSIVELY on the allowed table schemas provided below.
-2. Do NOT hallucinate tables, columns, or relations that are not explicitly defined.
-3. Only generate SELECT statements. DML or DDL modifications (INSERT, UPDATE, DELETE, DROP) are strictly forbidden.
-4. Return ONLY the raw SQL query string inside the response. Do not include markdown code blocks (```sql), explanations, or trailing commentary.
+1. TARGET DIALECT: You are generating SQL for a '{db_dialect.upper()}' database. You MUST write strictly valid {db_dialect.upper()} syntax.
+2. Follow the exact formatting patterns demonstrated in the examples below. Banned syntax includes TOP clauses, CONCAT functions, and YEAR() calls.
+
+{few_shot_examples}
 
 Target Database Schema Context:
 {live_schema}
 """
-        
+
         # 5. LLM Execution Phase - Now fully live
         generated_sql = call_llm_api(system_prompt, user_query)
         
