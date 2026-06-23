@@ -1,244 +1,120 @@
-from flask import Flask, request, jsonify, render_template
-import requests
-import sqlglot
-import sqlite3
-import yaml
 import os
-from schema_harvester import fetch_live_schema
+import re
+from flask import Flask, request, jsonify
+# The ghost import is gone. We only import the correct, live harvester.
+from schema_harvester import extract_live_metadata
+from openai import OpenAI
 
 app = Flask(__name__)
 
-# =========================================================================
-# SYSTEM CONFIGURATION
-# =========================================================================
+# Hijack the OpenAI client to point to your local Ollama daemon
+client = OpenAI(
+    base_url="http://localhost:11434/v1",
+    api_key="local-bypass" # The library requires a string here, but Ollama ignores it
+)
 
-SYSTEM_PROMPT_TEMPLATE = """You are an Oracle SQL generator for a healthcare reporting layer.
-
-You MUST follow every rule below. Violating ANY rule means your output is rejected:
-1. Output ONLY raw SQL. No prose. No markdown. No SQL fences. No explanations.
-2. SELECT statements only. No INSERT / UPDATE / DELETE / MERGE / DDL / EXECUTE / BEGIN / DECLARE / CALL.
-3. Reference ONLY the views listed in the schema context below. The views are prefixed APP_USER.VW_*.
-   Never query base tables.
-4. ONE statement only. No semicolons except at the very end (optional).
-5. Use Oracle syntax: TRUNC(x, 'MM') / TRUNC(SYSDATE) / FETCH FIRST n ROWS ONLY / HEXTORAW for RAW(16) ids.
-6. Aggregate when the question implies it ("how many", "total", "count of") — return a single scalar row.
-   List per-row when the question asks for detail ("show me", "list").
-7. ALWAYS qualify columns with the view alias to avoid ambiguity.
-8. Never reference columns not present in the schema context.
-
-Schema context (the only views and columns you may use):
-{schema}"""
-
-
-# =========================================================================
-# DATABASE & LOGGING UTILITIES (PHASE 2)
-# =========================================================================
-
-def init_db():
-    conn = sqlite3.connect("promotion_queue.db")
-    cursor = conn.cursor()
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS adhoc_promotion_queue (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_question TEXT NOT NULL,
-            generated_sql TEXT,
-            execution_status TEXT NOT NULL,  -- 'Approved', 'Rejected', or 'Promoted'
-            rejection_details TEXT,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-        )
-    """)
-    conn.commit()
-    conn.close()
-
-def log_transaction(question, sql, status, details=""):
-    try:
-        conn = sqlite3.connect("promotion_queue.db")
-        cursor = conn.cursor()
-        cursor.execute("""
-            INSERT INTO adhoc_promotion_queue (user_question, generated_sql, execution_status, rejection_details)
-            VALUES (?, ?, ?, ?)
-        """, (question, sql, status, details))
-        conn.commit()
-    except Exception as e:
-        print(f"[-] Database Logging Failure: {str(e)}")
-    finally:
-        conn.close()
-
-
-# =========================================================================
-# SECURITY & VALIDATION FENCES
-# =========================================================================
-
-def build_error_response(layer, code, message, details=None):
-    response = {
-        "status": "Rejected",
-        "layer": layer,
-        "error_code": code,
-        "message": message
-    }
-    if details:
-        response["details"] = details
-    return jsonify(response), 400
-
-def validate_sql(raw_sql):
-    cleaned_sql = raw_sql.strip()
-    if cleaned_sql.startswith("```sql"):
-        cleaned_sql = cleaned_sql[6:]
-    if cleaned_sql.startswith("```"):
-        cleaned_sql = cleaned_sql[3:]
-    if cleaned_sql.endswith("```"):
-        cleaned_sql = cleaned_sql[:-3]
-    cleaned_sql = cleaned_sql.strip()
-
-    forbidden_keywords = ["insert", "drop", "delete", "update", "truncate", "alter"]
-    if any(keyword in cleaned_sql.lower() for keyword in forbidden_keywords):
-        return False, {"code": "SECURITY_VIOLATION", "msg": "Prohibited database mutation keywords found."}
-
-    try:
-        parsed = sqlglot.parse(cleaned_sql, read="oracle")
-        if len(parsed) > 1:
-            return False, {"code": "INJECTION_ATTACK", "msg": "Multiple statements detected."}
-        statement = parsed[0]
-        if not isinstance(statement, sqlglot.exp.Select):
-            return False, {"code": "INVALID_OPERATION", "msg": "Only SELECT statements are authorized."}
-        return True, statement.sql(dialect="oracle")
-    except sqlglot.errors.ParseError as e:
-        return False, {"code": "PARSE_ERROR", "msg": "The AI generated invalid SQL syntax.", "trace": str(e)}
-
-
-# =========================================================================
-# DETERMINISTIC COMPILER ROUTER (PHASE 6)
-# =========================================================================
-
-def get_promoted_sql(user_question):
+def call_llm_api(system_prompt, user_query):
     """
-    Checks the YAML catalog for a pre-approved SQL match.
-    Bypasses the LLM entirely if a match is found.
+    Executes a live inference call to the local Ollama engine.
     """
-    if not os.path.exists("catalog.yaml"):
-        return None
-        
-    try:
-        with open("catalog.yaml", "r") as f:
-            catalog = yaml.safe_load(f)
-            
-        if not catalog or "promoted_queries" not in catalog:
-            return None
-            
-        # Normalize input to prevent case-sensitivity or punctuation misses
-        normalized_input = user_question.lower().strip().replace("?", "")
-        
-        for entry in catalog.get("promoted_queries", []):
-            if entry["intent"].lower() == normalized_input:
-                return entry["sql"]
-    except Exception as e:
-        print(f"[-] Catalog load error: {e}")
-        
-    return None
+    response = client.chat.completions.create(
+        model="llama3.2",  # Must match the exact model you verified in step 1
+        messages=[
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_query}
+        ],
+        temperature=0.0  # Zero hallucination tolerance for code generation
+    )
+    return response.choices[0].message.content
 
+def violates_security_matrix(query):
+    """
+    Your defense layer. Inspects raw natural language or generated queries 
+    for injection threats before parsing.
+    """
+    malicious_patterns = [
+        r"(?i)\bDROP\b", 
+        r"(?i)\bALTER\b", 
+        r"(?i)\bDELETE\b", 
+        r"(?i)\bTRUNCATE\b",
+        r"(?i)--", 
+        r"(?i);", 
+        r"UNION\s+SELECT"
+    ]
+    for pattern in malicious_patterns:
+        if re.search(pattern, query):
+            return True
+    return False
 
-# =========================================================================
-# ADMIN UI ROUTES (PHASE 5)
-# =========================================================================
-
-@app.route('/admin', methods=['GET'])
-def admin_dashboard():
-    return render_template('admin.html')
-
-@app.route('/api/queue', methods=['GET'])
-def get_queue():
-    conn = sqlite3.connect("promotion_queue.db")
-    cursor = conn.cursor()
-    cursor.execute("SELECT id, user_question, generated_sql, execution_status, rejection_details FROM adhoc_promotion_queue ORDER BY id DESC")
-    rows = cursor.fetchall()
-    conn.close()
-    data = [{"id": r[0], "question": r[1], "sql": r[2], "status": r[3], "details": r[4]} for r in rows]
-    return jsonify(data)
-
-@app.route('/api/promote/<int:row_id>', methods=['POST'])
-def promote_query(row_id):
-    conn = sqlite3.connect("promotion_queue.db")
-    cursor = conn.cursor()
-    cursor.execute("UPDATE adhoc_promotion_queue SET execution_status = 'Promoted' WHERE id = ?", (row_id,))
-    conn.commit()
-    conn.close()
-    return jsonify({"message": "Successfully promoted"}), 200
-
-
-# =========================================================================
-# CORE GENERATION PIPELINE
-# =========================================================================
-
-@app.route('/generate-sql', methods=['POST'])
+@app.route('/api/generate-sql', methods=['POST'])
 def generate_sql():
+    # 1. Enforce strict JSON data contract
     data = request.get_json()
-    if not data or 'question' not in data:
-        return build_error_response("API Gateway", "MISSING_PAYLOAD", "Missing question in request.")
-        
-    question = data['question']
-    
-    # -------------------------------------------------------------------------
-    # 1. INPUT GUARDRAIL FENCE
-    # -------------------------------------------------------------------------
-    if ";" in question:
-        log_transaction(question, sql=None, status="Rejected", details="Input Guardrail Block")
-        return build_error_response("Input Guardrail", "MALICIOUS_INPUT", "Character ';' is strictly prohibited.")
-
-    # -------------------------------------------------------------------------
-    # 2. DETERMINISTIC COMPILER CHECK (PATH 3)
-    # -------------------------------------------------------------------------
-    promoted_sql = get_promoted_sql(question)
-    if promoted_sql:
-        print(f"[+] COMPILER HIT: Bypassing LLM for '{question}'")
-        log_transaction(question, sql=promoted_sql, status="Promoted", details="Cache hit from catalog.yaml")
+    if not data or 'query' not in data:
         return jsonify({
-            "generated_sql": promoted_sql,
-            "status": "Promoted"
-        })
+            "status": "error",
+            "error_code": "INVALID_REQUEST",
+            "message": "Missing 'query' parameter in request body."
+        }), 400
+    
+    user_query = data['query']
+    
+    # 2. Input Validation Layer (Defense-in-Depth)
+    if violates_security_matrix(user_query):
+        return jsonify({
+            "status": "error",
+            "error_code": "SECURITY_VIOLATION",
+            "message": "Malicious input signatures detected. Transaction aborted."
+        }), 403
 
-    # -------------------------------------------------------------------------
-    # 3. LLM GENERATION (PATH 2)
-    # -------------------------------------------------------------------------
-    schema_context = fetch_live_schema("business_data.db")
-    if schema_context.startswith("Error"):
-        return build_error_response("Database Layer", "SCHEMA_FETCH_FAILED", "Could not connect to live dictionary.")
-    
-    system_prompt = SYSTEM_PROMPT_TEMPLATE.format(schema=schema_context)
-    user_prompt = f"Question: {question}\n\nReturn the SQL only:"
-    ollama_payload = {
-        "model": "qwen2.5-coder:14b",
-        "system": system_prompt,
-        "prompt": user_prompt,
-        "stream": False,
-        "temperature": 0.0
-    }
-    
     try:
-        print(f"[*] COMPILER MISS: Routing '{question}' to LLM Engine...")
-        response = requests.post("http://localhost:11434/api/generate", json=ollama_payload)
-        response.raise_for_status()
-        raw_sql = response.json().get("response", "").strip()
+        # 3. Dynamic Context Harvesting
+        live_schema = extract_live_metadata()
         
-        # -------------------------------------------------------------------------
-        # 4. OUTPUT VALIDATION FENCE
-        # -------------------------------------------------------------------------
-        is_valid, validation_result = validate_sql(raw_sql)
-        if not is_valid:
-             log_transaction(question, sql=raw_sql, status="Rejected", details=validation_result["msg"])
-             return build_error_response("Output Fence", validation_result["code"], validation_result["msg"], validation_result.get("trace"))
-             
-        # -------------------------------------------------------------------------
-        # 5. SUCCESSFUL PATH REGISTRATION
-        # -------------------------------------------------------------------------
-        log_transaction(question, sql=validation_result, status="Approved", details="Passed all validation gates.")
+        # 4. Strict System Boundary Construction
+        system_prompt = f"""You are an enterprise-grade Text-to-SQL compilation engine.
+Your sole mandate is to convert natural language queries into valid, optimized SQL statements.
+
+CRITICAL OPERATIONAL BOUNDARIES:
+1. You must generate SQL statements based EXCLUSIVELY on the allowed table schemas provided below.
+2. Do NOT hallucinate tables, columns, or relations that are not explicitly defined.
+3. Only generate SELECT statements. DML or DDL modifications (INSERT, UPDATE, DELETE, DROP) are strictly forbidden.
+4. Return ONLY the raw SQL query string inside the response. Do not include markdown code blocks (```sql), explanations, or trailing commentary.
+
+Target Database Schema Context:
+{live_schema}
+"""
+        
+        # 5. LLM Execution Phase - Now fully live
+        generated_sql = call_llm_api(system_prompt, user_query)
+        
+        # 6. Post-Generation Output Fence
+        if violates_security_matrix(generated_sql):
+            return jsonify({
+                "status": "error",
+                "error_code": "MALICIOUS_OUTPUT_BLOCKED",
+                "message": "The engine generated an unvalidated or destructive query string."
+            }), 500
+
+        # 7. Standardized Success Response Contract
         return jsonify({
-            "generated_sql": validation_result, 
-            "status": "AdHoc"
-        })
+            "status": "success",
+            "data": {
+                "input_query": user_query,
+                "generated_sql": generated_sql.strip()
+            }
+        }), 200
+
+    except Exception as e:
+        # 8. FATAL ERROR EXPOSURE
+        # This will print the exact reason the API crashed into your server terminal
+        print(f"\n--- FATAL PIPELINE CRASH ---\n{str(e)}\n----------------------------\n")
         
-    except requests.exceptions.RequestException as e:
-        return jsonify({"error": f"Ollama connection failed: {str(e)}"}), 503
+        return jsonify({
+            "status": "error",
+            "error_code": "INTERNAL_SYSTEM_FAILURE",
+            "message": "An unhandled exception occurred in the middleware backend pipeline."
+        }), 500
 
 if __name__ == '__main__':
-    init_db()
-    app.run(port=7280, debug=True)
+    app.run(host='127.0.0.1', port=5000, debug=True)
