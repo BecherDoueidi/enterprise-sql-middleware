@@ -1,17 +1,23 @@
 from sqlalchemy import create_engine, MetaData
-
-def extract_live_metadata():
-    # URI updated to match your exact downloaded file
-    engine = create_engine("sqlite:///Chinook_Sqlite.sqlite")
-    metadata = MetaData()
-    metadata.reflect(bind=engine)
+from sqlalchemy import create_engine, inspect
+def extract_live_metadata(connection_string="postgresql+psycopg2://postgres:admin@127.0.0.1:5432/postgres"):
+    # In a real enterprise environment, this connection string is loaded from an .env file
+    engine = create_engine(connection_string)
+    inspector = inspect(engine)
     
-    schema_context = "Allowed views:\n"
-    for table in metadata.sorted_tables:
-        columns = [col.name for col in table.c]
-        schema_context += f"- {table.name}: {', '.join(columns)}\n"
-        
-    return schema_context
+    # 1. Interrogate the engine for its exact dialect (e.g., 'sqlite', 'postgresql', 'oracle')
+    db_dialect = engine.dialect.name
+    
+    # 2. Harvest the schema (This should match your existing extraction logic)
+    schema_text = ""
+    for table_name in inspector.get_table_names():
+        schema_text += f"Table: {table_name}\n"
+        # Open schema_harvester.py and ensure column['type'] is explicitly cast to a string
+    for column in inspector.get_columns(table_name):
+        schema_text += f"  - {column['name']} ({str(column['type'])})\n"
+            
+    # 3. Return both the dialect and the schema as a tuple
+    return db_dialect, schema_text
 
 if __name__ == "__main__":
     print("Extracting live metadata...\n")

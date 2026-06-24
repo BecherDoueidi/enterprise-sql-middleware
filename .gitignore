@@ -1,13 +1,18 @@
-# Ignore the Python Virtual Environment
-my_flask_app/.venv/
+# Environments
+.env
 .venv/
+env/
+venv/
+
+# Caches & Compiled Code
 __pycache__/
 *.pyc
+*.pyo
 
-# Ignore local binary databases (Audit & Business data)
+# Local Databases (Do not push your test state)
 *.db
 *.sqlite3
 
-# Ignore OS-specific garbage
+# OS Generated
 .DS_Store
 Thumbs.db
