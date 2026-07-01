@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Charity Database — Ask a Question</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,600;8..60,700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --ink: #16243D;
+            --ink-soft: #3A4A66;
+            --paper: #FAF7F1;
+            --paper-raised: #FFFFFF;
+            --line: #E4DDCD;
+            --amber: #C4621A;
+            --amber-soft: #F3E3D2;
+            --green: #2F6B4F;
+            --green-soft: #DCEDE2;
+            --red: #A33A2E;
+            --red-soft: #F5DEDA;
+            --blue: #2C5282;
+            --blue-soft: #DCE7F3;
+            font-size: 16px;
+        }
+        * { box-sizing: border-box; }
+        body {
+            font-family: 'Inter', system-ui, sans-serif;
+            background-color: var(--paper);
+            background-image: linear-gradient(var(--line) 1px, transparent 1px);
+            background-size: 100% 32px;
+            color: var(--ink);
+            margin: 0;
+            padding: 48px 20px 80px;
+            min-height: 100vh;
+        }
+        a { color: var(--blue); }
+
+        .page { max-width: 760px; margin: 0 auto; }
+
+        .masthead {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            border-bottom: 2px solid var(--ink);
+            padding-bottom: 14px;
+            margin-bottom: 36px;
+        }
+        .masthead .mark {
+            font-family: 'Source Serif 4', serif;
+            font-weight: 700;
+            font-size: 1.15rem;
+            letter-spacing: 0.01em;
+        }
+        .masthead .mark span { color: var(--amber); }
+        .masthead nav a {
+            text-decoration: none;
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--ink-soft);
+            border: 1px solid var(--line);
+            background: var(--paper-raised);
+            padding: 6px 14px;
+            border-radius: 999px;
+            transition: border-color 0.15s, color 0.15s;
+        }
+        .masthead nav a:hover { border-color: var(--ink); color: var(--ink); }
+
+        .card {
+            background: var(--paper-raised);
+            border: 1px solid var(--line);
+            border-radius: 14px;
+            padding: 36px 40px 32px;
+            box-shadow: 0 1px 2px rgba(22,36,61,0.04), 0 8px 24px -16px rgba(22,36,61,0.15);
+        }
+
+        h1 {
+            font-family: 'Source Serif 4', serif;
+            font-weight: 600;
+            font-size: 2rem;
+            line-height: 1.15;
+            margin: 0 0 8px 0;
+        }
+        .subtitle { color: var(--ink-soft); font-size: 0.98rem; margin: 0 0 28px 0; max-width: 46ch; }
+
+        form { display: flex; gap: 10px; }
+        textarea {
+            flex: 1;
+            resize: none;
+            padding: 14px 16px;
+            border: 1.5px solid var(--line);
+            border-radius: 10px;
+            font-size: 1rem;
+            font-family: inherit;
+            min-height: 52px;
+            background: var(--paper);
+            color: var(--ink);
+        }
+        textarea::placeholder { color: #A39C8A; }
+        textarea:focus {
+            outline: none;
+            border-color: var(--amber);
+            box-shadow: 0 0 0 3px var(--amber-soft);
+            background: var(--paper-raised);
+        }
+        button[type="submit"] {
+            cursor: pointer;
+            padding: 0 26px;
+            border: none;
+            border-radius: 10px;
+            font-weight: 600;
+            font-size: 0.95rem;
+            background-color: var(--ink);
+            color: var(--paper);
+            transition: background-color 0.15s, transform 0.1s;
+        }
+        button[type="submit"]:hover { background-color: var(--amber); }
+        button[type="submit"]:active { transform: translateY(1px); }
+        button[type="submit"]:disabled { background-color: #C7C2B4; cursor: not-allowed; }
+
+        .examples {
+            margin-top: 14px;
+            font-size: 0.82rem;
+            color: #9A9384;
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 6px;
+        }
+        .examples .label { font-weight: 600; color: var(--ink-soft); margin-right: 2px; }
+        .examples button {
+            cursor: pointer;
+            background: var(--paper);
+            color: var(--ink-soft);
+            font-weight: 500;
+            padding: 5px 12px;
+            font-size: 0.8rem;
+            border: 1px solid var(--line);
+            border-radius: 999px;
+            transition: border-color 0.15s, color 0.15s;
+        }
+        .examples button:hover { border-color: var(--amber); color: var(--amber); }
+
+        .role-bar {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-top: 22px;
+            padding-top: 20px;
+            border-top: 1px dashed var(--line);
+            font-size: 0.85rem;
+            color: var(--ink-soft);
+        }
+        .role-bar label { font-weight: 600; color: var(--ink); }
+        .role-bar select, .role-bar input {
+            padding: 5px 10px;
+            border: 1px solid var(--line);
+            border-radius: 6px;
+            font-size: 0.85rem;
+            background: var(--paper);
+            color: var(--ink);
+            font-family: inherit;
+        }
+        .role-bar select:focus, .role-bar input:focus { outline: none; border-color: var(--amber); }
+
+        #result-area { margin-top: 28px; }
+
+        .status-line { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; font-size: 0.85rem; }
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 12px;
+            border-radius: 999px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            letter-spacing: 0.01em;
+        }
+        .badge::before { content: ''; width: 6px; height: 6px; border-radius: 50%; display: inline-block; }
+        .badge-fresh { background-color: var(--blue-soft); color: var(--blue); }
+        .badge-fresh::before { background: var(--blue); }
+        .badge-cached { background-color: var(--green-soft); color: var(--green); }
+        .badge-cached::before { background: var(--green); }
+        .badge-catalog { background-color: var(--amber-soft); color: var(--amber); }
+        .badge-catalog::before { background: var(--amber); }
+
+        .sql-block {
+            background: var(--ink);
+            color: #C9F2D8;
+            padding: 14px 16px;
+            border-radius: 8px;
+            font-family: 'JetBrains Mono', ui-monospace, monospace;
+            white-space: pre-wrap;
+            font-size: 0.82rem;
+            line-height: 1.5;
+            margin-bottom: 18px;
+            overflow-x: auto;
+            border-left: 3px solid var(--amber);
+        }
+
+        table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+        th, td { padding: 10px 12px; border-bottom: 1px solid var(--line); text-align: left; }
+        th {
+            background-color: var(--paper);
+            color: var(--ink-soft);
+            font-weight: 600;
+            font-size: 0.78rem;
+            text-transform: uppercase;
+            letter-spacing: 0.03em;
+        }
+        tbody tr:hover td { background-color: var(--paper); }
+        td span.null { color: #B5AE9C; font-style: italic; }
+
+        .message-box { padding: 14px 16px; border-radius: 8px; font-size: 0.9rem; border: 1px solid transparent; }
+        .message-success { background-color: var(--green-soft); color: var(--green); border-color: #BFE0CC; }
+        .message-error { background-color: var(--red-soft); color: var(--red); border-color: #E5C2BC; }
+
+        .empty-state {
+            color: #A39C8A;
+            font-size: 0.9rem;
+            text-align: center;
+            padding: 32px 0;
+            border: 1px dashed var(--line);
+            border-radius: 10px;
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            button, .examples button { transition: none; }
+        }
+        @media (max-width: 560px) {
+            .card { padding: 26px 22px; }
+            form { flex-direction: column; }
+            button[type="submit"] { padding: 12px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="page">
+        <div class="masthead">
+            <div class="mark">Ledger<span>·</span>Ask</div>
+            <nav style="display:flex; align-items:center; gap:10px;">
+                <span style="font-size:0.85rem; color:var(--ink-soft);">
+                    Signed in as <strong style="color:var(--ink);">{{ username }}</strong>
+                    <span class="badge {{ 'badge-catalog' if role == 'admin' else 'badge-fresh' }}" style="margin-left:6px;">{{ role }}</span>
+                </span>
+                {% if role == 'admin' %}
+                <a href="/admin">Admin Review Queue →</a>
+                {% endif %}
+                <form method="POST" action="/logout" style="margin:0;">
+                    <button type="submit" style="cursor:pointer; font-size:0.85rem; font-weight:600; color:var(--ink-soft); border:1px solid var(--line); background:var(--paper-raised); padding:6px 14px; border-radius:999px;">Log out</button>
+                </form>
+            </nav>
+        </div>
+
+        <div class="card">
+            <h1>Ask your database</h1>
+            <p class="subtitle">Type a question in plain English. The engine writes and runs the SQL for you.</p>
+
+            <form id="ask-form">
+                <textarea id="question" placeholder="e.g. How many active donors are there from the UAE?" rows="1" required></textarea>
+                <button type="submit" id="ask-btn">Ask</button>
+            </form>
+
+            {% if role == 'admin' %}
+            <div class="examples" id="examples-admin">
+                <span class="label">Try:</span>
+                <button type="button" onclick="fillExample(this)">How many active beneficiaries are there?</button>
+                <button type="button" onclick="fillExample(this)">Show total donations by campaign</button>
+                <button type="button" onclick="fillExample(this)">List the top 5 corporate donors by contribution</button>
+            </div>
+            {% else %}
+            <div class="examples" id="examples-donor">
+                <span class="label">Try:</span>
+                <button type="button" onclick="fillExample(this)">How many beneficiaries am I actively sponsoring?</button>
+                <button type="button" onclick="fillExample(this)">How much have I donated in total?</button>
+                <button type="button" onclick="fillExample(this)">Show my donation history</button>
+            </div>
+            {% endif %}
+
+            <div id="result-area">
+                <div class="empty-state">Ask a question above to see results here.</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const form = document.getElementById('ask-form');
+        const questionInput = document.getElementById('question');
+        const askBtn = document.getElementById('ask-btn');
+        const resultArea = document.getElementById('result-area');
+
+        function fillExample(btn) {
+            questionInput.value = btn.textContent;
+            questionInput.focus();
+        }
+
+        function renderTable(data) {
+            if (!data || data.length === 0) {
+                return '<div class="empty-state">Query ran successfully but returned no rows.</div>';
+            }
+            const columns = Object.keys(data[0]);
+            let html = '<table><thead><tr>';
+            columns.forEach(col => html += `<th>${col}</th>`);
+            html += '</tr></thead><tbody>';
+            data.forEach(row => {
+                html += '<tr>';
+                columns.forEach(col => html += `<td>${row[col] === null ? '<span class="null">NULL</span>' : row[col]}</td>`);
+                html += '</tr>';
+            });
+            html += '</tbody></table>';
+            return html;
+        }
+
+        function sourceBadge(body) {
+            if (body.source === 'catalog') {
+                return '<span class="badge badge-catalog">From catalog — live data, no AI used</span>';
+            }
+            if (body.cached) {
+                return `<span class="badge badge-cached">Instant — seen before (hit #${body.hit_count})</span>`;
+            }
+            return '<span class="badge badge-fresh">Freshly generated</span>';
+        }
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const question = questionInput.value.trim();
+            if (!question) return;
+
+            askBtn.disabled = true;
+            askBtn.textContent = 'Thinking…';
+            resultArea.innerHTML = '<div class="empty-state">Running your question…</div>';
+
+            try {
+                // role and donor_id are no longer sent by the client --
+                // the server reads them from the logged-in session, so
+                // there's nothing here for a visitor to tamper with.
+                const response = await fetch('/api/generate-sql', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ query: question })
+                });
+
+                if (response.status === 401) {
+                    window.location.href = '/login';
+                    return;
+                }
+
+                const body = await response.json();
+
+                if (body.status === 'success') {
+                    let html = `<div class="status-line">${sourceBadge(body)}</div>`;
+                    if (body.generated_sql) {
+                        html += `<div class="sql-block">${body.generated_sql}</div>`;
+                    }
+                    if (body.data) {
+                        html += renderTable(body.data);
+                    } else if (body.message) {
+                        html += `<div class="message-box message-success">${body.message}</div>`;
+                    }
+                    resultArea.innerHTML = html;
+                } else {
+                    resultArea.innerHTML = `<div class="message-box message-error">${body.message || 'Something went wrong.'}</div>`;
+                }
+            } catch (err) {
+                resultArea.innerHTML = `<div class="message-box message-error">Could not reach the server. Is app.py running?</div>`;
+            } finally {
+                askBtn.disabled = false;
+                askBtn.textContent = 'Ask';
+            }
+        });
+    </script>
+</body>
+</html>

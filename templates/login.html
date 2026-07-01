@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sign in — Ledger·Ask</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,600;8..60,700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --ink: #16243D;
+            --ink-soft: #3A4A66;
+            --paper: #FAF7F1;
+            --paper-raised: #FFFFFF;
+            --line: #E4DDCD;
+            --amber: #C4621A;
+            --amber-soft: #F3E3D2;
+            --red: #A33A2E;
+            --red-soft: #F5DEDA;
+            font-size: 16px;
+        }
+        * { box-sizing: border-box; }
+        body {
+            font-family: 'Inter', system-ui, sans-serif;
+            background-color: var(--paper);
+            background-image: linear-gradient(var(--line) 1px, transparent 1px);
+            background-size: 100% 32px;
+            color: var(--ink);
+            margin: 0;
+            padding: 48px 20px 80px;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .page { max-width: 400px; width: 100%; }
+
+        .mark {
+            font-family: 'Source Serif 4', serif;
+            font-weight: 700;
+            font-size: 1.15rem;
+            letter-spacing: 0.01em;
+            text-align: center;
+            margin-bottom: 28px;
+        }
+        .mark span { color: var(--amber); }
+
+        .card {
+            background: var(--paper-raised);
+            border: 1px solid var(--line);
+            border-radius: 14px;
+            padding: 36px 36px 32px;
+            box-shadow: 0 1px 2px rgba(22,36,61,0.04), 0 8px 24px -16px rgba(22,36,61,0.15);
+        }
+
+        h1 {
+            font-family: 'Source Serif 4', serif;
+            font-weight: 600;
+            font-size: 1.5rem;
+            line-height: 1.15;
+            margin: 0 0 6px 0;
+        }
+        .subtitle { color: var(--ink-soft); font-size: 0.92rem; margin: 0 0 26px 0; }
+
+        label {
+            display: block;
+            font-size: 0.82rem;
+            font-weight: 600;
+            color: var(--ink-soft);
+            margin-bottom: 6px;
+        }
+        input[type="text"], input[type="password"] {
+            width: 100%;
+            padding: 11px 14px;
+            border: 1.5px solid var(--line);
+            border-radius: 10px;
+            font-size: 0.95rem;
+            font-family: inherit;
+            background: var(--paper);
+            color: var(--ink);
+            margin-bottom: 18px;
+        }
+        input[type="text"]:focus, input[type="password"]:focus {
+            outline: none;
+            border-color: var(--amber);
+            box-shadow: 0 0 0 3px var(--amber-soft);
+            background: var(--paper-raised);
+        }
+
+        button[type="submit"] {
+            width: 100%;
+            cursor: pointer;
+            padding: 12px;
+            border: none;
+            border-radius: 10px;
+            font-weight: 600;
+            font-size: 0.95rem;
+            background-color: var(--ink);
+            color: var(--paper);
+            transition: background-color 0.15s, transform 0.1s;
+        }
+        button[type="submit"]:hover { background-color: var(--amber); }
+        button[type="submit"]:active { transform: translateY(1px); }
+
+        .message-box {
+            padding: 12px 14px;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            border: 1px solid var(--red-soft);
+            background-color: var(--red-soft);
+            color: var(--red);
+            margin-bottom: 18px;
+        }
+
+        .hint {
+            margin-top: 20px;
+            font-size: 0.78rem;
+            color: #A39C8A;
+            text-align: center;
+            line-height: 1.5;
+        }
+    </style>
+</head>
+<body>
+    <div class="page">
+        <div class="mark">Ledger<span>·</span>Ask</div>
+        <div class="card">
+            <h1>Sign in</h1>
+            <p class="subtitle">Enter your credentials to ask questions or review the queue.</p>
+
+            {% if error %}
+            <div class="message-box">{{ error }}</div>
+            {% endif %}
+
+            <form method="POST" action="/login">
+                <label for="username">Username</label>
+                <input type="text" id="username" name="username" required autofocus>
+
+                <label for="password">Password</label>
+                <input type="password" id="password" name="password" required>
+
+                <button type="submit">Sign in</button>
+            </form>
+
+            <p class="hint">Default seeded accounts: admin / admin123 (Admin) and donor1 / donor123 (Donor). Change these before deploying anywhere real.</p>
+        </div>
+    </div>
+</body>
+</html>

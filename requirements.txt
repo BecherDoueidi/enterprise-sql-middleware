@@ -1,0 +1,6 @@
+flask
+sqlalchemy
+openai
+pymysql
+python-dotenv
+pyyaml

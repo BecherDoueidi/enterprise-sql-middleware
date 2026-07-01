@@ -12,7 +12,9 @@ __pycache__/
 # Local Databases (Do not push your test state)
 *.db
 *.sqlite3
+*.sqlite
 
 # OS Generated
 .DS_Store
 Thumbs.db
+credentials.txt
